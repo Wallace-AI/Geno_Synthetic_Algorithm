@@ -3,13 +3,22 @@ sparse improvement snapshots (JSONL with cap)."""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from types import TracebackType
 
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class RunRecord(BaseModel):
+    """One row of the run-level ledger. Immutable after construction.
+
+    Optional-typed fields (`rho`, `n_families`, `noise_mode`, `error_message`)
+    are required-with-`None`-allowed: the caller must declare a value each time
+    so that a forgotten field does not silently default away.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
     run_id: str
     git_commit: str
     config_hash: str
@@ -19,9 +28,9 @@ class RunRecord(BaseModel):
     variant: str
     benchmark: str
     dim: int
-    rho: Optional[float]
-    n_families: Optional[int]
-    noise_mode: Optional[str]
+    rho: float | None
+    n_families: int | None
+    noise_mode: str | None
     seed_master: int
     evaluation_budget: int
     final_best_observed: float
@@ -35,7 +44,7 @@ class RunRecord(BaseModel):
     wall_clock_seconds: float
     peak_memory_mb: float
     status: str  # completed | failed | timeout
-    error_message: Optional[str]
+    error_message: str | None
 
 
 class RunLogger:
@@ -44,7 +53,7 @@ class RunLogger:
     Appends to existing Parquet via read-modify-write (acceptable since this
     is run-level — at most ~13k rows for the full battery)."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._buffer: list[RunRecord] = []
@@ -64,8 +73,15 @@ class RunLogger:
         combined.to_parquet(self.path, index=False)
         self._buffer.clear()
 
-    def __enter__(self):
+    def __enter__(self) -> "RunLogger":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        # If flush() raises while an exception is propagating, the original is
+        # lost — acceptable for fail-loud research code (we want both signals).
         self.flush()
