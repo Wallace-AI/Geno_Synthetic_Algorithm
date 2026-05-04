@@ -23,26 +23,42 @@ class Provenance(BaseModel):
 def _git_commit() -> tuple[str, bool | None]:
     try:
         commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, text=True
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL, text=True, timeout=5,
         ).strip()
         status = subprocess.check_output(
-            ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL, text=True
+            ["git", "status", "--porcelain"],
+            stderr=subprocess.DEVNULL, text=True, timeout=5,
         )
         dirty = len(status.strip()) > 0
         return commit, dirty
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError,
+            subprocess.TimeoutExpired):
         return "unknown", None
 
 
 def _env_hash() -> str:
-    """SHA256 of installed package versions for reproducibility."""
+    """Hash of installed package versions, normalized for cross-machine stability.
+
+    The fingerprint is stable across machines for the same set of pinned
+    packages, but does not capture editable installs (lines starting with
+    ``-e ``), which reference machine-specific paths and are therefore
+    stripped before hashing. Remaining lines are sorted to guard against
+    incidental ordering differences from ``pip freeze``.
+    """
     try:
         out = subprocess.check_output(
-            [sys.executable, "-m", "pip", "freeze"], text=True
+            [sys.executable, "-m", "pip", "freeze"],
+            text=True, stderr=subprocess.DEVNULL, timeout=30,
         )
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
         out = ""
-    return hashlib.sha256(out.encode()).hexdigest()
+    # Drop editable-install lines (machine-specific paths) and sort for determinism.
+    lines = sorted(
+        line.strip() for line in out.splitlines()
+        if line.strip() and not line.startswith("-e ")
+    )
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
 
 
 def _hardware_fingerprint() -> str:
