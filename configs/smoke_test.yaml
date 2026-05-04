@@ -1,0 +1,8 @@
+# Smoke test: minimal infrastructure check (no GSA logic yet).
+# Asserts: seed control deterministic, logger writes Parquet, provenance captured.
+n_seeds: 2
+dim: 10
+budget: 200
+benchmarks: []
+algorithms: []
+output_dir: results/raw/smoke
