@@ -161,9 +161,24 @@ class GenerationLogger:
 class SnapshotLogger:
     """Sparse JSONL writer with reservoir sampling cap.
 
-    Up to cap_count snapshots OR cap_bytes total — whichever hits first.
-    After cap, applies reservoir sampling (Vitter's Algorithm R) so the
-    retained snapshots are an unbiased uniform sample of all snapshots seen.
+    Single-writer per file; `flush()` truncates and rewrites. Up to `cap_count`
+    snapshots OR `cap_bytes` total — Vitter Algorithm R against `cap_count`,
+    with the byte cap enforced as a hard ceiling at every accept site.
+
+    Semantics:
+      - A payload whose serialized size exceeds `cap_bytes` is dropped
+        entirely (counted in `n_dropped_oversize`, NOT in `n_seen`) — the
+        reservoir stays unbiased over events that could be retained.
+      - Phase 1 (buffer below `cap_count` AND would still fit `cap_bytes`):
+        append.
+      - Phase 2 (buffer at `cap_count` OR Phase 1 byte-check failed):
+        accept with probability `cap_count / n_seen`. If accepted, swap the
+        new line for a uniformly chosen existing entry — but only if the
+        post-swap buffer still satisfies `cap_bytes`. A swap that would
+        violate the cap is silently treated as "don't swap" (Vitter R is
+        unbiased under this; the trade-off is a small bias toward smaller
+        payloads when bytes binds, bounded by the cap_count vs cap_bytes
+        ratio).
     """
 
     def __init__(
@@ -179,25 +194,43 @@ class SnapshotLogger:
         self.cap_bytes = cap_bytes
         self._buffer: list[str] = []  # serialized JSON lines
         self._buffer_bytes = 0
-        self._n_seen = 0
+        self.n_seen = 0
+        self.n_dropped_oversize = 0
         self._rng = random.Random(rng_seed)
 
     def write(self, payload: dict[str, Any]) -> None:
         line = json.dumps(payload)
-        self._n_seen += 1
+        line_size = len(line) + 1  # +1 for trailing newline at flush time
+
+        # Hard guard: a single line bigger than cap_bytes can never fit;
+        # drop without counting in n_seen so reservoir uniformity over
+        # retainable events is preserved.
+        if line_size > self.cap_bytes:
+            self.n_dropped_oversize += 1
+            return
+
+        self.n_seen += 1
+
+        # Phase 1: fill the reservoir while both caps allow.
         if (
             len(self._buffer) < self.cap_count
-            and self._buffer_bytes + len(line) + 1 <= self.cap_bytes
+            and self._buffer_bytes + line_size <= self.cap_bytes
         ):
             self._buffer.append(line)
-            self._buffer_bytes += len(line) + 1
-        else:
-            # Reservoir sampling: replace random existing entry with prob cap/n
-            if self._buffer and self._rng.random() < (self.cap_count / self._n_seen):
-                idx = self._rng.randint(0, len(self._buffer) - 1)
-                old = self._buffer[idx]
+            self._buffer_bytes += line_size
+            return
+
+        # Phase 2: Vitter Algorithm R against cap_count.
+        if self._rng.random() < (self.cap_count / self.n_seen):
+            idx = self._rng.randint(0, len(self._buffer) - 1)
+            old = self._buffer[idx]
+            old_size = len(old) + 1
+            # Only accept the swap if the byte cap would hold afterwards.
+            if self._buffer_bytes - old_size + line_size <= self.cap_bytes:
                 self._buffer[idx] = line
-                self._buffer_bytes += len(line) - len(old)
+                self._buffer_bytes += line_size - old_size
+            # else: silently drop — equivalent to Vitter R rolling "don't swap"
+            # for this draw. Small bias toward smaller payloads, bounded.
 
     def flush(self) -> None:
         if not self._buffer:

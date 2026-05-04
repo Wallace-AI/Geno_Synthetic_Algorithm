@@ -151,3 +151,40 @@ def test_snapshot_logger_caps_at_bytes(tmp_path):
     log.flush()
     size = (tmp_path / "r1.jsonl").stat().st_size
     assert size <= 250  # one line of slack
+
+
+def test_snapshot_logger_byte_cap_holds_with_heterogeneous_sizes(tmp_path):
+    """Mixed payload sizes must never push the file above cap_bytes.
+
+    The prior implementation only checked the byte cap on Phase-1 fills, so
+    a Phase-2 swap could replace a small entry with a larger one and exceed
+    the cap. With explicit per-swap byte enforcement, the file size is
+    bounded at cap_bytes regardless of write order.
+    """
+    path = tmp_path / "r1.jsonl"
+    log = SnapshotLogger(path, cap_count=10, cap_bytes=300, rng_seed=0)
+    # Alternate small (~25-byte) and large (~210-byte) payloads.
+    for i in range(200):
+        if i % 2 == 0:
+            log.write({"i": i})
+        else:
+            log.write({"i": i, "blob": "z" * 200})
+    log.flush()
+    size = path.stat().st_size
+    assert size <= 300, f"file size {size} exceeded cap_bytes=300"
+
+
+def test_snapshot_logger_drops_oversized_single_payload(tmp_path):
+    """A single payload larger than cap_bytes is dropped entirely; it is
+    not entered in n_seen so reservoir uniformity over retainable events
+    is preserved."""
+    path = tmp_path / "r1.jsonl"
+    log = SnapshotLogger(path, cap_count=50, cap_bytes=100, rng_seed=0)
+    log.write({"blob": "z" * 500})  # serialized > 100 bytes
+    log.write({"i": 1})  # small, fits
+    log.flush()
+    lines = path.read_text().strip().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {"i": 1}
+    assert log.n_dropped_oversize == 1
+    assert log.n_seen == 1  # the dropped event was NOT counted in n_seen
