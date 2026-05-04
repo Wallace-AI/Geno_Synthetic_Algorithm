@@ -1,10 +1,17 @@
+import json
 import math
 
 import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from gsa.experiments.logging import RunLogger, RunRecord
+from gsa.experiments.logging import (
+    GenerationLogger,
+    GenerationRecord,
+    RunLogger,
+    RunRecord,
+    SnapshotLogger,
+)
 
 
 def make_record(run_id: str = "r1", seed: int = 0) -> RunRecord:
@@ -85,3 +92,62 @@ def test_run_record_is_frozen():
     rec = make_record("r1", 0)
     with pytest.raises(ValidationError):
         rec.run_id = "r2"  # type: ignore[misc]
+
+
+def make_gen(run_id: str = "r1", gen: int = 0) -> GenerationRecord:
+    return GenerationRecord(
+        run_id=run_id, generation=gen, eval_count_at_gen=gen * 50,
+        best_so_far_observed=1.0 / (gen + 1),
+        best_so_far_true=1.0 / (gen + 1),
+        current_best_observed=1.0 / (gen + 1),
+        mean_fitness=2.0, std_fitness=0.5,
+        diversity_Z=0.1, diversity_R=0.2, diversity_B=0.3,
+        diversity_C=0.4, diversity_Cx=0.5, diversity_E=0.6,
+        operator_success_Z=0.5, operator_success_R=0.5, operator_success_B=0.5,
+        operator_success_C=0.5, operator_success_Cx=0.5, operator_success_E=0.5,
+        n_invalid_in_gen=0, n_repaired_in_gen=0,
+    )
+
+
+def test_generation_logger_partitions_by_benchmark_algorithm(tmp_path):
+    log = GenerationLogger(tmp_path, benchmark="typed_additive",
+                           algorithm="GSA_FULL_ENSEMBLE")
+    for g in range(5):
+        log.write(make_gen("r1", g))
+    log.flush()
+    expected = tmp_path / "typed_additive" / "GSA_FULL_ENSEMBLE.parquet"
+    assert expected.exists()
+    df = pd.read_parquet(expected)
+    assert len(df) == 5
+
+
+def test_generation_record_is_frozen():
+    """Logged generation rows must be immutable, like RunRecord."""
+    rec = make_gen("r1", 0)
+    with pytest.raises(ValidationError):
+        rec.generation = 99  # type: ignore[misc]
+
+
+def test_snapshot_logger_caps_at_50(tmp_path):
+    log = SnapshotLogger(tmp_path / "r1.jsonl", cap_count=50, cap_bytes=10_000_000)
+    for i in range(100):
+        log.write({"event": "improvement", "best": 1.0 / (i + 1), "i": i})
+    log.flush()
+    lines = (tmp_path / "r1.jsonl").read_text().strip().splitlines()
+    # Reservoir sampling keeps exactly cap_count after the cap is hit
+    assert len(lines) == 50
+    parsed = [json.loads(line) for line in lines]
+    indices = sorted(p["i"] for p in parsed)
+    # The first 50 events fill the reservoir; afterwards, sampling is
+    # probabilistic — assert size only, not specific indices
+    assert all(0 <= i < 100 for i in indices)
+
+
+def test_snapshot_logger_caps_at_bytes(tmp_path):
+    log = SnapshotLogger(tmp_path / "r1.jsonl", cap_count=10_000, cap_bytes=200)
+    big_payload = {"x": "y" * 100}
+    for _ in range(50):
+        log.write(big_payload)
+    log.flush()
+    size = (tmp_path / "r1.jsonl").stat().st_size
+    assert size <= 250  # one line of slack
