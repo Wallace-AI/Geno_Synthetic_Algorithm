@@ -250,10 +250,11 @@ class GSAOptimizer:
                 try:
                     credits = self.credit.assign(eb, partner_pool=pool_arg,
                                                  problem=self.problem,
-                                                 rng=self.rng_op)
+                                                 rng=self.rng_op,
+                                                 target_family=fam)
                 except Exception:
                     # Budget exhausted mid-credit-update: fall back to f_assembled
-                    credits = {f: f_assembled for f in self.populations}
+                    credits = {fam: f_assembled}
 
                 # Replacement: replace parent if THIS family's credit is better
                 op_attempts[fam] += 1

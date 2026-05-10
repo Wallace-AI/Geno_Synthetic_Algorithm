@@ -52,33 +52,46 @@ def _neutral_subgenome(spec: TypeSpec, family: GeneFamily) -> TypedSubgenome:
 
 
 class CreditAssigner:
-    """Common interface."""
+    """Common interface.
+
+    `target_family`, if set, restricts credit computation to that single
+    family — used by the optimizer's per-family inner loop to avoid scoring
+    credits that won't be consumed (saves K-1× extra evaluations per call
+    on multi-family bundles).
+    """
 
     def assign(self, eb: EvaluatedBundle, partner_pool: Any,
-               problem: Any, rng: Optional[np.random.Generator]) -> dict[GeneFamily, float]:
+               problem: Any, rng: Optional[np.random.Generator],
+               target_family: Optional[GeneFamily] = None,
+               ) -> dict[GeneFamily, float]:
         raise NotImplementedError
+
+
+def _families_to_score(eb: EvaluatedBundle,
+                       target_family: Optional[GeneFamily]) -> list[GeneFamily]:
+    if target_family is not None:
+        return [target_family]
+    return list(eb.bundle.subgenomes.keys())
 
 
 @dataclass
 class DirectCredit(CreditAssigner):
     """Every participating subgenome receives the assembled fitness."""
 
-    def assign(self, eb, partner_pool, problem, rng):
-        return {fam: eb.fitness for fam in eb.bundle.subgenomes}
+    def assign(self, eb, partner_pool, problem, rng, target_family=None):
+        return {fam: eb.fitness for fam in _families_to_score(eb, target_family)}
 
 
 @dataclass
 class EliteCredit(CreditAssigner):
     """Pair the subgenome with elite reps from every other family."""
 
-    def assign(self, eb, partner_pool, problem, rng):
-        # partner_pool is dict[family, TypedSubgenome] of elites
+    def assign(self, eb, partner_pool, problem, rng, target_family=None):
         out = {}
-        for fam, sg in eb.bundle.subgenomes.items():
+        for fam in _families_to_score(eb, target_family):
+            sg = eb.bundle.subgenomes[fam]
             other_fams = [f for f in eb.bundle.subgenomes if f != fam]
             if not other_fams:
-                # Single-family bundle: elite-pairing is degenerate, fall back
-                # to assembled fitness without burning an extra evaluation.
                 out[fam] = float(eb.fitness)
                 continue
             partners = TypedBundle({
@@ -93,14 +106,12 @@ class EliteCredit(CreditAssigner):
 class EnsembleCredit(CreditAssigner):
     K: int = 5
 
-    def assign(self, eb, partner_pool, problem, rng):
-        # partner_pool is dict[family, list[TypedSubgenome]] sampling pool
+    def assign(self, eb, partner_pool, problem, rng, target_family=None):
         out = {}
-        for fam, sg in eb.bundle.subgenomes.items():
+        for fam in _families_to_score(eb, target_family):
+            sg = eb.bundle.subgenomes[fam]
             other_fams = [f for f in eb.bundle.subgenomes if f != fam]
             if not other_fams:
-                # K identical evals on a single-family bundle = waste; reuse
-                # the assembled fitness already in eb.
                 out[fam] = float(eb.fitness)
                 continue
             assert rng is not None
@@ -120,9 +131,10 @@ class EnsembleCredit(CreditAssigner):
 class MarginalCredit(CreditAssigner):
     """Marginal contribution: f(bundle) - f(bundle with subgenome -> neutral)."""
 
-    def assign(self, eb, partner_pool, problem, rng):
+    def assign(self, eb, partner_pool, problem, rng, target_family=None):
         out = {}
-        for fam, sg in eb.bundle.subgenomes.items():
+        for fam in _families_to_score(eb, target_family):
+            sg = eb.bundle.subgenomes[fam]
             neutral = _neutral_subgenome(sg.spec, fam)
             replaced = TypedBundle({
                 f: (neutral if f == fam else other_sg)
