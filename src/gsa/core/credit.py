@@ -75,6 +75,12 @@ class EliteCredit(CreditAssigner):
         # partner_pool is dict[family, TypedSubgenome] of elites
         out = {}
         for fam, sg in eb.bundle.subgenomes.items():
+            other_fams = [f for f in eb.bundle.subgenomes if f != fam]
+            if not other_fams:
+                # Single-family bundle: elite-pairing is degenerate, fall back
+                # to assembled fitness without burning an extra evaluation.
+                out[fam] = float(eb.fitness)
+                continue
             partners = TypedBundle({
                 f: (sg if f == fam else partner_pool[f])
                 for f in eb.bundle.subgenomes
@@ -89,15 +95,19 @@ class EnsembleCredit(CreditAssigner):
 
     def assign(self, eb, partner_pool, problem, rng):
         # partner_pool is dict[family, list[TypedSubgenome]] sampling pool
-        assert rng is not None
         out = {}
         for fam, sg in eb.bundle.subgenomes.items():
+            other_fams = [f for f in eb.bundle.subgenomes if f != fam]
+            if not other_fams:
+                # K identical evals on a single-family bundle = waste; reuse
+                # the assembled fitness already in eb.
+                out[fam] = float(eb.fitness)
+                continue
+            assert rng is not None
             scores = []
             for _ in range(self.K):
                 comb = {fam: sg}
-                for other_fam in eb.bundle.subgenomes:
-                    if other_fam == fam:
-                        continue
+                for other_fam in other_fams:
                     pool = partner_pool[other_fam]
                     j = int(rng.integers(0, len(pool)))
                     comb[other_fam] = pool[j]
