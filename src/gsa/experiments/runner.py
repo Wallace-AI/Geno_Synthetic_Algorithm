@@ -20,6 +20,7 @@ from gsa.benchmarks.typed_deceptive import TypedDeceptive
 from gsa.benchmarks.typed_noisy import TypedNoisy
 from gsa.benchmarks.typed_mix import TypedMix
 from gsa.benchmarks.ioh_adapter import ioh_problem
+from gsa.benchmarks.coco_mixint import CocoMixInt, _COCO_AVAILABLE
 from gsa.baselines.random_search import (
     random_flattened_search, random_typed_search,
 )
@@ -40,6 +41,7 @@ _BENCHMARK_REGISTRY = {
     "typed_deceptive": TypedDeceptive,
     "typed_noisy": TypedNoisy,
     "typed_mix": TypedMix,
+    "coco_mixint": CocoMixInt,
 }
 
 _BASELINE_REGISTRY = {
