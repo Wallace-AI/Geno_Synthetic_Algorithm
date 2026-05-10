@@ -47,6 +47,11 @@ class GSAConfig:
     selection_k: int = 3
     F: float = 0.5
     CR: float = 0.9
+    # Asynchronous evolution: per-family update period in outer generations.
+    # `None` = every family updates every generation (synchronous).
+    # `{R: 1, B: 4, Z: 2, C: 4, Cx: 4, E: 4}` = R updates each gen, B every
+    # 4 gens, etc. Families absent from the dict default to period 1.
+    family_update_periods: Optional[dict] = None
 
 
 @dataclass
@@ -197,7 +202,16 @@ class GSAOptimizer:
             out[fam] = scores
         return out
 
-    def _step(self):
+    def _families_active_this_gen(self, gen: int) -> list:
+        periods = self.cfg.family_update_periods or {}
+        active = []
+        for fam in self.populations:
+            period = max(1, int(periods.get(fam, 1)))
+            if gen % period == 0:
+                active.append(fam)
+        return active
+
+    def _step(self, gen: int = 0):
         elite = self._elite_partners()
         ens_pool = self._ensemble_pool()
         diversity_scores = self._diversity_per_family()
@@ -206,7 +220,9 @@ class GSAOptimizer:
         n_invalid = 0
         n_repaired = 0
 
-        for fam, pop in self.populations.items():
+        active_families = self._families_active_this_gen(gen)
+        for fam in active_families:
+            pop = self.populations[fam]
             for i in range(pop.size):
                 if not self.problem.budget.has(1):
                     return op_success, op_attempts, n_invalid, n_repaired
@@ -273,7 +289,7 @@ class GSAOptimizer:
         gen = 0
         while gen < max_generations and self.problem.budget.has(1):
             try:
-                step_out = self._step()
+                step_out = self._step(gen)
             except Exception:
                 break  # budget exhausted or other terminal issue
             if step_out is None:
