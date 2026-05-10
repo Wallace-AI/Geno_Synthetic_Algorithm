@@ -1,0 +1,10 @@
+# Per-(benchmark, dim) ranks (1 = best)
+
+|                         |   COOPERATIVE_COEVOLUTION |   FLATTENED_DE |   FLATTENED_EA |   GSA_DIRECT |   GSA_ELITE_CONTEXT |   GSA_FULL_ENSEMBLE |   GSA_GENERIC_OPERATORS |   GSA_NO_ASSEMBLY |   GSA_NO_DIVERSITY |   MIXED_VARIABLE_GA |   RANDOM_FLATTENED |
+|:------------------------|--------------------------:|---------------:|---------------:|-------------:|--------------------:|--------------------:|------------------------:|------------------:|-------------------:|--------------------:|-------------------:|
+| ('ioh:OneMax', 50)      |                       nan |            nan |              1 |          nan |                 nan |                   1 |                     nan |               nan |                nan |                 nan |                  3 |
+| ('typed_additive', 20)  |                         1 |              2 |              4 |            6 |                   5 |                   9 |                      11 |                 9 |                  7 |                   3 |                  8 |
+| ('typed_deceptive', 20) |                       nan |            nan |              1 |          nan |                 nan |                   3 |                     nan |                 3 |                  2 |                 nan |                  5 |
+| ('typed_epistatic', 20) |                       nan |            nan |              1 |            3 |                   2 |                   4 |                     nan |               nan |                nan |                 nan |                  5 |
+| ('typed_mix', 24)       |                       nan |            nan |              1 |          nan |                 nan |                   3 |                     nan |               nan |                nan |                 nan |                  2 |
+| ('typed_noisy', 20)     |                       nan |            nan |              1 |            4 |                 nan |                   2 |                     nan |                 2 |                nan |                 nan |                  5 |

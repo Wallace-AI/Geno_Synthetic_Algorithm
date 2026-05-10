@@ -1,0 +1,10 @@
+# Median (IQR) of final_best_true per cell
+
+|                         | COOPERATIVE_COEVOLUTION   | FLATTENED_DE   | FLATTENED_EA        | GSA_DIRECT    | GSA_ELITE_CONTEXT   | GSA_FULL_ENSEMBLE   | GSA_GENERIC_OPERATORS   | GSA_NO_ASSEMBLY   | GSA_NO_DIVERSITY   | MIXED_VARIABLE_GA   | RANDOM_FLATTENED   |
+|:------------------------|:--------------------------|:---------------|:--------------------|:--------------|:--------------------|:--------------------|:------------------------|:------------------|:-------------------|:--------------------|:-------------------|
+| ('ioh:OneMax', 50)      | nan                       | nan            | 0.00e+00 (0.00e+00) | nan           | nan                 | 0.00e+00 (0.00e+00) | nan                     | nan               | nan                | nan                 | 10.000 (2.000)     |
+| ('typed_additive', 20)  | 1.39e-06 (6.24e-05)       | 0.027 (0.043)  | 0.200 (0.200)       | 0.313 (0.059) | 0.226 (0.072)       | 0.665 (0.262)       | 0.784 (0.054)           | 0.665 (0.262)     | 0.611 (0.185)      | 0.040 (0.027)       | 0.646 (0.215)      |
+| ('typed_deceptive', 20) | nan                       | nan            | 1.008 (0.007)       | nan           | nan                 | 5.455 (0.411)       | nan                     | 5.455 (0.411)     | 3.997 (1.672)      | nan                 | 6.097 (1.048)      |
+| ('typed_epistatic', 20) | nan                       | nan            | 4.21e-06 (6.51e-06) | 0.289 (0.217) | 0.096 (0.080)       | 0.588 (0.185)       | nan                     | nan               | nan                | nan                 | 0.593 (0.380)      |
+| ('typed_mix', 24)       | nan                       | nan            | 6.77e-05 (2.29e-04) | nan           | nan                 | 0.555 (0.709)       | nan                     | nan               | nan                | nan                 | 0.409 (0.473)      |
+| ('typed_noisy', 20)     | nan                       | nan            | 0.158 (0.106)       | 0.812 (0.364) | nan                 | 0.786 (0.460)       | nan                     | 0.786 (0.460)     | nan                | nan                 | 1.004 (0.636)      |
