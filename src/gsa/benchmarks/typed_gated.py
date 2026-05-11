@@ -37,7 +37,7 @@ import numpy as np
 from gsa.benchmarks.base import Problem
 from gsa.core.genome import TypedBundle
 from gsa.core.types import (
-    GeneFamily, IntegerSpec, RealSpec, BooleanSpec, TypeSpec,
+    GeneFamily, IntegerSpec, RealSpec, BooleanSpec, ComplexSpec, TypeSpec,
 )
 
 
@@ -47,15 +47,19 @@ class TypedGated(Problem):
     def __init__(self, budget, seed: int, dim: int = 20,
                  active_fraction: float = 0.5,
                  include_integer: bool = True,
+                 include_complex: bool = False,
                  real_lo: float = -5.0, real_hi: float = 5.0,
-                 integer_lo: int = 0, integer_hi: int = 10):
+                 integer_lo: int = 0, integer_hi: int = 10,
+                 cx_r_min: float = 0.5, cx_r_max: float = 2.0):
         if not (0.0 < active_fraction < 1.0):
             raise ValueError("active_fraction must be strictly between 0 and 1")
         self.dim = int(dim)
         self.active_fraction = float(active_fraction)
         self.include_integer = bool(include_integer)
+        self.include_complex = bool(include_complex)
         self.real_lo, self.real_hi = float(real_lo), float(real_hi)
         self.integer_lo, self.integer_hi = int(integer_lo), int(integer_hi)
+        self.cx_r_min, self.cx_r_max = float(cx_r_min), float(cx_r_max)
         super().__init__(budget=budget, seed=seed)
 
     def _setup(self) -> None:
@@ -72,6 +76,10 @@ class TypedGated(Problem):
                 n=D,
                 lo=np.full(D, self.integer_lo, dtype=np.int64),
                 hi=np.full(D, self.integer_hi, dtype=np.int64),
+            )
+        if self.include_complex:
+            self._specs[GeneFamily.Cx] = ComplexSpec(
+                n=D, r_min=self.cx_r_min, r_max=self.cx_r_max,
             )
 
         # Planted target. Half-True / half-False by default, shuffled.
@@ -98,6 +106,13 @@ class TypedGated(Problem):
             self._target_Z = None
             self._integer_range = 1.0
 
+        if self.include_complex:
+            r = rng.uniform(self.cx_r_min, self.cx_r_max, size=D)
+            phi = rng.uniform(-np.pi, np.pi, size=D)
+            self._target_Cx = r * np.exp(1j * phi)
+        else:
+            self._target_Cx = None
+
         # Per-component weights so each component caps at 1 at worst-case.
         # We weight them roughly equally — the gating dynamics are what
         # we care about, not absolute fitness magnitude.
@@ -106,6 +121,9 @@ class TypedGated(Problem):
         # weight by 1/(D * (hi-lo)^2) keeps the R term in [0, 1].
         self._w_R = 1.0 / (D * (self.real_hi - self.real_lo) ** 2)
         self._w_Z = 1.0 / (D * self._integer_range) if self.include_integer else 0.0
+        # Worst-case |Cx - target|^2 bounded by (2*r_max)^2 = 4*r_max^2.
+        self._w_Cx = (1.0 / (D * 4 * self.cx_r_max ** 2)
+                      if self.include_complex else 0.0)
 
     @property
     def specs(self) -> dict[GeneFamily, TypeSpec]:
@@ -138,7 +156,14 @@ class TypedGated(Problem):
             Z = bundle.subgenomes[GeneFamily.Z].values.astype(np.int64)
             z_pen = float(np.sum(np.abs(Z - self._target_Z))) * self._w_Z
 
-        return b_pen + r_pen + z_pen
+        # Complex penalty (always raw, no gating semantics). Adds an
+        # architectural family that flattened encoders cannot represent.
+        cx_pen = 0.0
+        if self.include_complex:
+            Cx = bundle.subgenomes[GeneFamily.Cx].values
+            cx_pen = float(np.sum(np.abs(Cx - self._target_Cx) ** 2)) * self._w_Cx
+
+        return b_pen + r_pen + z_pen + cx_pen
 
     def true_optimum(self) -> float:
         return 0.0

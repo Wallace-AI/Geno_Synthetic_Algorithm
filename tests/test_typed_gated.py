@@ -82,3 +82,45 @@ def test_runner_dispatch():
     rec = run_one(spec)
     assert rec.status == "completed"
     assert np.isfinite(rec.final_best_observed)
+
+
+def test_include_complex_adds_cx_family():
+    p = TypedGated(EvaluationBudget(10), seed=0, dim=8,
+                   include_integer=False, include_complex=True)
+    assert GeneFamily.Cx in p.specs
+    assert p.specs[GeneFamily.Cx].n == 8
+
+
+def test_complex_planted_optimum_is_zero_under_active():
+    """At B=target_B, R[active]=target_R[active], Cx=target_Cx, fitness=0
+    under ActiveAssembly regardless of R at gated-off positions."""
+    p = TypedGated(EvaluationBudget(10), seed=1, dim=10,
+                   include_integer=False, include_complex=True)
+    p.set_assembler(ActiveAssembly())
+    B = TypedSubgenome(GeneFamily.B, p._target_B.copy(),
+                       p.specs[GeneFamily.B])
+    R_vals = np.where(p._target_B, p._target_R, 42.0)  # garbage at off
+    R = TypedSubgenome(GeneFamily.R, R_vals.astype(np.float64),
+                       p.specs[GeneFamily.R])
+    Cx = TypedSubgenome(GeneFamily.Cx, p._target_Cx.copy(),
+                        p.specs[GeneFamily.Cx])
+    bundle = TypedBundle({GeneFamily.R: R, GeneFamily.B: B,
+                          GeneFamily.Cx: Cx})
+    f = p.evaluate(bundle)
+    assert f == pytest.approx(0.0, abs=1e-12)
+
+
+def test_flat_baselines_crash_on_complex():
+    """When include_complex=True, flattened decoders cannot represent Cx,
+    so the run records as failed — the architectural-reach mechanism."""
+    from gsa.experiments.runner import RunSpec, run_one
+    spec = RunSpec(
+        algorithm="FLATTENED_DE",
+        benchmark="typed_gated",
+        benchmark_kwargs={"dim": 10, "include_integer": False,
+                          "include_complex": True},
+        seed=0, budget=200,
+        output_dir="results/raw/_test_gated_cx",
+    )
+    rec = run_one(spec)
+    assert rec.status == "failed"
