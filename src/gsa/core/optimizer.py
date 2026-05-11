@@ -145,6 +145,12 @@ class GSAOptimizer:
         self.total_repairs = 0
 
     def _initialize(self):
+        # Hand the algorithm's assembler to the problem so assembly-aware
+        # benchmarks (needs_phenotype=True) compute fitness through the
+        # same mode the algorithm uses internally. Assembly-agnostic
+        # benchmarks ignore the assembler entirely.
+        if hasattr(self.problem, "set_assembler"):
+            self.problem.set_assembler(self.assembler)
         for family, spec in self.problem.specs.items():
             pop = TypedPopulation(spec=spec, size=self.cfg.population_size,
                                   rng=self.rng_init)

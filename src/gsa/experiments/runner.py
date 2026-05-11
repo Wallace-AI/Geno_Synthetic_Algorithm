@@ -19,6 +19,7 @@ from gsa.benchmarks.typed_epistatic import TypedEpistatic
 from gsa.benchmarks.typed_deceptive import TypedDeceptive
 from gsa.benchmarks.typed_noisy import TypedNoisy
 from gsa.benchmarks.typed_mix import TypedMix
+from gsa.benchmarks.typed_gated import TypedGated
 from gsa.benchmarks.ioh_adapter import ioh_problem
 from gsa.benchmarks.coco_mixint import CocoMixInt, _COCO_AVAILABLE
 from gsa.baselines.random_search import (
@@ -41,6 +42,7 @@ _BENCHMARK_REGISTRY = {
     "typed_deceptive": TypedDeceptive,
     "typed_noisy": TypedNoisy,
     "typed_mix": TypedMix,
+    "typed_gated": TypedGated,
     "coco_mixint": CocoMixInt,
 }
 
