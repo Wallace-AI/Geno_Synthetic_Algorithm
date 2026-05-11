@@ -53,7 +53,10 @@ def main():
                         default="results/raw/bbob_mixint/runs.parquet")
     parser.add_argument("--out-dir", type=str,
                         default="results/reports/bbob_mixint")
+    parser.add_argument("--budget", type=int, default=BUDGET,
+                        help="Evaluation budget used (for config_hash recovery).")
     args = parser.parse_args()
+    budget = args.budget
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -66,7 +69,7 @@ def main():
     # Recover (function, instance, dim) by mapping config_hash -> grid.
     lookup = []
     for fn, inst, dim, algo in product(FUNCTIONS, INSTANCES, DIMS, ALGORITHMS):
-        h = _config_hash(algo, fn, inst, dim, BUDGET)
+        h = _config_hash(algo, fn, inst, dim, budget)
         lookup.append({"config_hash": h, "function": fn, "instance": inst,
                        "fn_name": FN_NAMES[fn]})
     lookup_df = pd.DataFrame(lookup)
@@ -129,7 +132,7 @@ def main():
            "",
            "Functions: f1 (Sphere), f8 (Rosenbrock), f15 (Rastrigin), "
            "f21 (Gallagher Gauss 101).",
-           "Instances: 1, 2, 3. Dim: 10 (8 integer + 2 real). Budget: 5000.",
+           f"Instances: 1, 2, 3. Dim: 10 (8 integer + 2 real). Budget: {budget}.",
            "Seeds: 5.",
            "",
            f"- Input: `{args.input}`",
