@@ -117,7 +117,7 @@ docs/           # design specs, planning notes
 
 If you use this code, please cite the accompanying paper. Citation
 metadata is available in [`CITATION.cff`](CITATION.cff); the arXiv
-identifier will be filled in once the preprint is posted.
+identifier is 2605.13365.
 
 ## License
 
