@@ -29,11 +29,11 @@ preferred-citation:
   # with the assigned arXiv ID (e.g. "2606.01234") and uncomment the
   # DOI identifier. arXiv DOIs follow the pattern 10.48550/arXiv.<ID>.
   journal: "arXiv preprint"
-  # url: "https://arxiv.org/abs/XXXX.XXXXX"
+  # url: "https://arxiv.org/abs/2605.13365"
   identifiers:
     - type: other
-      value: "arXiv:XXXX.XXXXX"
+      value: "arXiv:2605.13365"
       description: "arXiv preprint identifier (to be filled in once assigned)"
-    # - type: doi
-    #   value: "10.48550/arXiv.XXXX.XXXXX"
-    #   description: "arXiv DOI"
+    - type: doi
+      value: "10.48550/arXiv.2605.13365"
+      description: "arXiv DOI"
